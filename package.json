@@ -1,0 +1,14 @@
+{
+  "name": "antlr4ts",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "scripts":{
+	"antlr4-python":"antlr4ts -visitor Python3.g4"
+},
+  "devDependencies": {
+    "antlr4": "^4.9.2",
+    "antlr4ts": "^0.5.0-alpha.4",
+    "antlr4ts-cli": "^0.5.0-alpha.4"
+  }
+}
