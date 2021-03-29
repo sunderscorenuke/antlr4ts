@@ -1,15 +1,22 @@
-import antlr4 from "antlr4";
-import Python3Lexer from "./Python3Lexer.js";
-import Python3Parser from "./Python3Parser.js";
-import Python3Listener from "./Python3Listener.js";
-
-export default class PlainPython3Listener extends Python3Listener {
-  constructor(res) {
-    super();
-    this.Res = res;
-  }
-
-  enterSingle_input(ctx) {
-    this.Res.write("A good start" + ctx);
-  }
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+class PlainPython3Listener {
+    constructor(res) {
+        this.Res = res;
+    }
+    enterSingle_input(ctx) {
+        console.log("A good start" + ctx);
+    }
+    enterExpr_stmt(ctx) {
+        console.log("Entered expressions");
+    }
+    enterComp_if(ctx) {
+        console.log("Entered compound if");
+    }
+    enterIf_stmt(ctx) {
+        console.log("Detected if" + ctx);
+    }
+    ;
 }
+exports.default = PlainPython3Listener;
+//# sourceMappingURL=PlainPython3Listener.js.map

@@ -1,6 +1,11 @@
 // Generated from Python3.g4 by ANTLR 4.9.0-SNAPSHOT
 
 
+  import { Token } from 'antlr4ts/Token';
+  import { CommonToken } from 'antlr4ts/CommonToken';
+  import { Python3Parser } from './Python3Parser';
+
+
 import { ATN } from "antlr4ts/atn/ATN";
 import { ATNDeserializer } from "antlr4ts/atn/ATNDeserializer";
 import { CharStream } from "antlr4ts/CharStream";
@@ -187,64 +192,88 @@ export class Python3Lexer extends Lexer {
 	// tslint:enable:no-trailing-whitespace
 
 
-	  // A queue where extra tokens are pushed on (see the NEWLINE lexer rule).
-	  private java.util.LinkedList<Token> tokens = new java.util.LinkedList<>();
-	  // The stack that keeps track of the indentation level.
-	  private java.util.Stack<Integer> indents = new java.util.Stack<>();
-	  // The amount of opened braces, brackets and parenthesis.
-	  private int opened = 0;
-	  // The most recently produced token.
-	  private Token lastToken = null;
-	  @Override
-	  public void emit(Token t) {
-	    super.setToken(t);
-	    tokens.offer(t);
-	  }
+	  private token_queue: Token[] = [];
+	  private indents: number[] = [];
+	  private opened: number = 0;
+	  private last_token: Token|undefined = undefined;
 
 	  @Override
-	  public Token nextToken() {
+	  public reset(): void {
+	    // A queue where extra tokens are pushed on (see the NEWLINE lexer rule).
+	    this.token_queue = [];
+
+	    // The stack that keeps track of the indentation level.
+	    this.indents = [];
+
+	    // The amount of opened braces, brackets and parenthesis.
+	    this.opened = 0;
+
+	    super.reset();
+	  };
+
+	  @Override
+	  public emit(token?: Token): Token {
+	    if (token) {
+	      token = super.emit(token);
+	    } else {
+	      token = super.emit();
+	    }
+	    this.token_queue.push(token);
+	    return token;
+	  };
+
+	  /**
+	   * Return the next token from the character stream and records this last
+	   * token in case it resides on the default channel. This recorded token
+	   * is used to determine when the lexer could possibly match a regex
+	   * literal.
+	   *
+	   */
+	  @Override
+	  public nextToken(): Token {
 	    // Check if the end-of-file is ahead and there are still some DEDENTS expected.
-	    if (_input.LA(1) == EOF && !this.indents.isEmpty()) {
+	    if (this.inputStream.LA(1) === Python3Parser.EOF && this.indents.length) {
+
 	      // Remove any trailing EOF tokens from our buffer.
-	      for (int i = tokens.size() - 1; i >= 0; i--) {
-	        if (tokens.get(i).getType() == EOF) {
-	          tokens.remove(i);
-	        }
-	      }
+	      this.token_queue = this.token_queue.filter(function(val) {
+	        return val.type !== Python3Parser.EOF;
+	      });
 
 	      // First emit an extra line break that serves as the end of the statement.
-	      this.emit(commonToken(Python3Parser.NEWLINE, "\n"));
+	      this.emit(this.commonToken(Python3Parser.NEWLINE, "\n"));
 
 	      // Now emit as much DEDENT tokens as needed.
-	      while (!indents.isEmpty()) {
-	        this.emit(createDedent());
-	        indents.pop();
+	      while (this.indents.length) {
+	        this.emit(this.createDedent());
+	        this.indents.pop();
 	      }
 
 	      // Put the EOF back on the token stream.
-	      this.emit(commonToken(Python3Parser.EOF, "<EOF>"));
+	      this.emit(this.commonToken(Python3Parser.EOF, "<EOF>"));
 	    }
 
-	    Token next = super.nextToken();
+	    let next = super.nextToken();
 
-	    if (next.getChannel() == Token.DEFAULT_CHANNEL) {
+	    if (next.channel == Token.DEFAULT_CHANNEL) {
 	      // Keep track of the last token on the default channel.
-	      this.lastToken = next;
+	      this.last_token = next;
 	    }
 
-	    return tokens.isEmpty() ? next : tokens.poll();
+	    return this.token_queue.shift() || next;
 	  }
 
-	  private Token createDedent() {
-	    CommonToken dedent = commonToken(Python3Parser.DEDENT, "");
-	    dedent.setLine(this.lastToken.getLine());
+	  private createDedent(): Token {
+	    let dedent = this.commonToken(Python3Parser.DEDENT, "");
+	    if (this.last_token) {
+	      dedent.line = this.last_token.line;
+	    }
 	    return dedent;
 	  }
 
-	  private CommonToken commonToken(int type, String text) {
-	    int stop = this.getCharIndex() - 1;
-	    int start = text.isEmpty() ? stop : stop - text.length() + 1;
-	    return new CommonToken(this._tokenFactorySourcePair, type, DEFAULT_TOKEN_CHANNEL, start, stop);
+	  private commonToken(type: number, text: string): CommonToken {
+	    let stop: number = this.charIndex - 1;
+	    let start: number = text.length ? stop - text.length + 1 : stop;
+	    return new CommonToken(type, text, this._tokenFactorySourcePair, Lexer.DEFAULT_TOKEN_CHANNEL, start, stop);
 	  }
 
 	  // Calculates the indentation of the provided spaces, taking the
@@ -255,24 +284,20 @@ export class Python3Lexer extends Lexer {
 	  //  the replacement is a multiple of eight [...]"
 	  //
 	  //  -- https://docs.python.org/3.1/reference/lexical_analysis.html#indentation
-	  static int getIndentationCount(String spaces) {
-	    int count = 0;
-	    for (char ch : spaces.toCharArray()) {
-	      switch (ch) {
-	        case '\t':
-	          count += 8 - (count % 8);
-	          break;
-	        default:
-	          // A normal space char.
-	          count++;
+	  private getIndentationCount(whitespace: string): number {
+	    let count = 0;
+	    for (let i = 0; i < whitespace.length; i++) {
+	      if (whitespace[i] === '\t') {
+	        count += 8 - count % 8;
+	      } else {
+	        count++;
 	      }
 	    }
-
 	    return count;
 	  }
 
-	  boolean atStartOfInput() {
-	    return super.getCharPositionInLine() == 0 && super.getLine() == 1;
+	  private atStartOfInput(): boolean {
+	    return this.charIndex === 0;
 	  }
 
 
@@ -332,35 +357,34 @@ export class Python3Lexer extends Lexer {
 		switch (actionIndex) {
 		case 0:
 
-			     String newLine = getText().replaceAll("[^\r\n\f]+", "");
-			     String spaces = getText().replaceAll("[\r\n\f]+", "");
-				 
+			     let newLine = this.text.replace(/[^\r\n]+/g, '');
+			     let spaces = this.text.replace(/[\r\n]+/g, '');
+
 			     // Strip newlines inside open clauses except if we are near EOF. We keep NEWLINEs near EOF to
 			     // satisfy the final newline needed by the single_put rule used by the REPL.
-			     int next = _input.LA(1);
-			     int nextnext = _input.LA(2);
-			     if (opened > 0 || (nextnext != -1 && (next == '\r' || next == '\n' || next == '\f' || next == '#'))) {
-			       // If we're inside a list or on a blank line, ignore all indents, 
+			     let next = this.inputStream.LA(1);
+			     let nextnext = this.inputStream.LA(2);
+			     if (this.opened > 0 || (nextnext != -1 /* EOF */ && (next === 13 /* '\r' */ || next === 10 /* '\n' */ || next === 35 /* '#' */))) {
+			       // If we're inside a list or on a blank line, ignore all indents,
 			       // dedents and line breaks.
-			       skip();
-			     }
-			     else {
-			       emit(commonToken(NEWLINE, newLine));
-			       int indent = getIndentationCount(spaces);
-			       int previous = indents.isEmpty() ? 0 : indents.peek();
-			       if (indent == previous) {
+			       this.skip();
+			     } else {
+			       this.emit(this.commonToken(Python3Parser.NEWLINE, newLine));
+
+			       let indent = this.getIndentationCount(spaces);
+			       let previous = this.indents.length ? this.indents[this.indents.length - 1] : 0;
+
+			       if (indent === previous) {
 			         // skip indents of the same size as the present indent-size
-			         skip();
-			       }
-			       else if (indent > previous) {
-			         indents.push(indent);
-			         emit(commonToken(Python3Parser.INDENT, spaces));
-			       }
-			       else {
+			         this.skip();
+			       } else if (indent > previous) {
+			         this.indents.push(indent);
+			         this.emit(this.commonToken(Python3Parser.INDENT, spaces));
+			       } else {
 			         // Possibly emit more than 1 DEDENT token.
-			         while(!indents.isEmpty() && indents.peek() > indent) {
-			           this.emit(createDedent());
-			           indents.pop();
+			         while (this.indents.length && this.indents[this.indents.length - 1] > indent) {
+			           this.emit(this.createDedent());
+			           this.indents.pop();
 			         }
 			       }
 			     }
@@ -371,42 +395,42 @@ export class Python3Lexer extends Lexer {
 	private OPEN_PAREN_action(_localctx: RuleContext, actionIndex: number): void {
 		switch (actionIndex) {
 		case 1:
-			opened++;
+			this.opened++;
 			break;
 		}
 	}
 	private CLOSE_PAREN_action(_localctx: RuleContext, actionIndex: number): void {
 		switch (actionIndex) {
 		case 2:
-			opened--;
+			this.opened--;
 			break;
 		}
 	}
 	private OPEN_BRACK_action(_localctx: RuleContext, actionIndex: number): void {
 		switch (actionIndex) {
 		case 3:
-			opened++;
+			this.opened++;
 			break;
 		}
 	}
 	private CLOSE_BRACK_action(_localctx: RuleContext, actionIndex: number): void {
 		switch (actionIndex) {
 		case 4:
-			opened--;
+			this.opened--;
 			break;
 		}
 	}
 	private OPEN_BRACE_action(_localctx: RuleContext, actionIndex: number): void {
 		switch (actionIndex) {
 		case 5:
-			opened++;
+			this.opened++;
 			break;
 		}
 	}
 	private CLOSE_BRACE_action(_localctx: RuleContext, actionIndex: number): void {
 		switch (actionIndex) {
 		case 6:
-			opened--;
+			this.opened--;
 			break;
 		}
 	}
@@ -421,7 +445,7 @@ export class Python3Lexer extends Lexer {
 	private NEWLINE_sempred(_localctx: RuleContext, predIndex: number): boolean {
 		switch (predIndex) {
 		case 0:
-			return atStartOfInput();
+			return this.atStartOfInput();
 		}
 		return true;
 	}
@@ -746,7 +770,7 @@ export class Python3Lexer extends Lexer {
 		"\u01C6\u01C7\x07v\x02\x02\u01C7N\x03\x02\x02\x02\u01C8\u01C9\x06(\x02" +
 		"\x02\u01C9\u01D5\x05\xF1y\x02\u01CA\u01CC\x07\x0F\x02\x02\u01CB\u01CA" +
 		"\x03\x02\x02\x02\u01CB\u01CC\x03\x02\x02\x02\u01CC\u01CD\x03\x02\x02\x02" +
-		"\u01CD\u01D0\x07\f\x02\x02\u01CE\u01D0\x04\x0E\x0F\x02\u01CF\u01CB\x03" +
+		"\u01CD\u01D0\x07\f\x02\x02\u01CE\u01D0\x07\x0F\x02\x02\u01CF\u01CB\x03" +
 		"\x02\x02\x02\u01CF\u01CE\x03\x02\x02\x02\u01D0\u01D2\x03\x02\x02\x02\u01D1" +
 		"\u01D3\x05\xF1y\x02\u01D2\u01D1\x03\x02\x02\x02\u01D2\u01D3\x03\x02\x02" +
 		"\x02\u01D3\u01D5\x03\x02\x02\x02\u01D4\u01C8\x03\x02\x02\x02\u01D4\u01CF" +
